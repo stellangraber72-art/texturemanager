@@ -20,13 +20,19 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Virtuelles Pack mit hoechster Prioritaet. Fuer jede Datei einer Kategorie mit
- * gewaehltem Pack wird die Datei aus genau diesem Pack geliefert.
+ * Virtuelles Pack mit höchster Priorität. Für jede Datei einer Kategorie mit
+ * gewähltem Pack wird die Datei aus genau diesem Pack geliefert.
+ *
+ * Wichtig: Minecraft lädt Ressourcen auf mehreren Threads gleichzeitig. Deshalb ist
+ * das Öffnen der Packs synchronisiert, und nichts hier darf eine Exception nach außen werfen
+ * (sonst bricht der ganze Reload ab: "Resource pack loading failed").
  */
 public class SelectionPack implements PackResources {
     private final PackRepository repo;
     private final Map<String, String> selection;
     private final Map<String, PackResources> opened = new HashMap<>();
+    private final Set<String> failed = new HashSet<>();
+    private boolean closed = false;
     private final PackLocationInfo info = new PackLocationInfo(
             "texturemanager", Component.literal("Texture Manager"), PackSource.BUILT_IN, Optional.empty());
 
@@ -40,11 +46,25 @@ public class SelectionPack implements PackResources {
         return packId == null ? null : open(packId);
     }
 
-    private PackResources open(String packId) {
-        return opened.computeIfAbsent(packId, id -> {
-            Pack p = repo.getPack(id);
-            return p == null ? null : p.open();
-        });
+    private synchronized PackResources open(String packId) {
+        if (closed || failed.contains(packId)) return null;
+        PackResources r = opened.get(packId);
+        if (r != null) return r;
+        try {
+            Pack p = repo.getPack(packId);
+            if (p == null) {
+                failed.add(packId);
+                TextureManagerMod.LOG.warn("Gewähltes Pack nicht gefunden (wird ignoriert): {}", packId);
+                return null;
+            }
+            r = p.open();
+            opened.put(packId, r);
+            return r;
+        } catch (Exception e) {
+            failed.add(packId);
+            TextureManagerMod.LOG.warn("Pack konnte nicht geöffnet werden (wird ignoriert): {}", packId, e);
+            return null;
+        }
     }
 
     @Override
@@ -52,23 +72,31 @@ public class SelectionPack implements PackResources {
 
     @Override
     public IoSupplier<InputStream> getResource(PackType type, Identifier id) {
-        if (type != PackType.CLIENT_RESOURCES) return null;
-        Category c = Categories.match(id);
-        if (c == null) return null;
-        PackResources src = source(c.id());
-        return src == null ? null : src.getResource(type, id);
+        try {
+            if (type != PackType.CLIENT_RESOURCES) return null;
+            Category c = Categories.match(id);
+            if (c == null) return null;
+            PackResources src = source(c.id());
+            return src == null ? null : src.getResource(type, id);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     @Override
     public void listResources(PackType type, String namespace, String path, ResourceOutput output) {
         if (type != PackType.CLIENT_RESOURCES || !namespace.equals("minecraft")) return;
         for (String packId : new HashSet<>(selection.values())) {
-            PackResources src = open(packId);
-            if (src == null) continue;
-            src.listResources(type, namespace, path, (id, supplier) -> {
-                Category c = Categories.match(id);
-                if (c != null && packId.equals(selection.get(c.id()))) output.accept(id, supplier);
-            });
+            try {
+                PackResources src = open(packId);
+                if (src == null) continue;
+                src.listResources(type, namespace, path, (id, supplier) -> {
+                    Category c = Categories.match(id);
+                    if (c != null && packId.equals(selection.get(c.id()))) output.accept(id, supplier);
+                });
+            } catch (Exception e) {
+                TextureManagerMod.LOG.warn("Auflisten fehlgeschlagen für Pack {}", packId, e);
+            }
         }
     }
 
@@ -84,7 +112,8 @@ public class SelectionPack implements PackResources {
     public PackLocationInfo location() { return info; }
 
     @Override
-    public void close() {
+    public synchronized void close() {
+        closed = true;
         opened.values().forEach(r -> { try { r.close(); } catch (Exception ignored) {} });
         opened.clear();
     }
