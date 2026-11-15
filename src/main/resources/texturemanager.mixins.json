@@ -1,0 +1,7 @@
+{
+  "required": true,
+  "package": "com.example.texturemanager.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": ["PackRepositoryMixin"],
+  "injectors": { "defaultRequire": 1 }
+}
