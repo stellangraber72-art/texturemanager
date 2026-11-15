@@ -3,9 +3,11 @@ package com.example.texturemanager;
 import com.example.texturemanager.Categories.Category;
 import com.example.texturemanager.PackScanner.Entry;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.StringWidget;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
@@ -24,6 +26,12 @@ public class TextureManagerScreen extends Screen {
     private int group = 0, catIndex = 0, catPage = 0, packPage = 0;
     private boolean applyToGroup = false;
 
+    private record Row(Entry e, int x, int y, int w) {}
+    private final List<Row> rows = new ArrayList<>();
+    private String currentCatId = "";
+    private boolean showBig = false;
+    private int previewX, previewY, previewSize = 100;
+
     public TextureManagerScreen(Screen parent) {
         super(Component.literal("Texture Manager"));
         this.parent = parent;
@@ -33,6 +41,7 @@ public class TextureManagerScreen extends Screen {
 
     @Override
     protected void init() {
+        rows.clear();
         addRenderableWidget(new StringWidget((width - font.width(title)) / 2, 6, font.width(title), 10, title, font));
 
         // --- Gruppen-Tabs ---
@@ -88,6 +97,15 @@ public class TextureManagerScreen extends Screen {
 
         // --- Packs (rechts) ---
         int x = 180, w = width - 190;
+        showBig = false;
+        if (w - previewSize - 20 >= 160) {
+            showBig = true;
+            w = w - previewSize - 20;
+            previewX = width - 10 - previewSize;
+            previewY = top + 14;
+            addRenderableWidget(new StringWidget(previewX, top, previewSize, 10, Component.literal("Vorschau"), font));
+        }
+        currentCatId = cat.id();
         List<Entry> entries = new ArrayList<>();
         entries.add(null); // null = "Automatisch"
         entries.addAll(data.get(cat.id()));
@@ -108,7 +126,8 @@ public class TextureManagerScreen extends Screen {
                     btn -> {
                         choose(cat, e, cats);
                         rebuildWidgets();
-                    }).bounds(x, y, w, 18).build());
+                    }).bounds(x + 22, y, w - 22, 18).build());
+            rows.add(new Row(e, x, y, w));
             y += 20;
         }
 
@@ -138,6 +157,43 @@ public class TextureManagerScreen extends Screen {
         }).bounds(width / 2 - 50, by, 100, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Abbrechen"), b -> onClose())
                 .bounds(width / 2 + 55, by, 100, 20).build());
+    }
+
+    @Override
+    public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        super.render(g, mouseX, mouseY, partialTick);
+
+        Entry hovered = null;
+        for (Row r : rows) {
+            PreviewCache.Preview pv = r.e() == null ? null : PreviewCache.get(r.e().packId(), currentCatId);
+            drawPreview(g, pv, r.x(), r.y(), 18);
+            if (mouseX >= r.x() && mouseX < r.x() + r.w() && mouseY >= r.y() && mouseY < r.y() + 18) {
+                hovered = r.e();
+            }
+        }
+        if (showBig) {
+            String packId = hovered != null ? hovered.packId() : pending.get(currentCatId);
+            PreviewCache.Preview pv = packId == null ? null : PreviewCache.get(packId, currentCatId);
+            drawPreview(g, pv, previewX, previewY, previewSize);
+        }
+    }
+
+    /** Zeichnet eine Textur skaliert in ein Quadrat. Hohe Streifen (Animationen) zeigen nur das erste Bild. */
+    private void drawPreview(GuiGraphics g, PreviewCache.Preview p, int x, int y, int size) {
+        g.fill(x, y, x + size, y + size, 0xFF202020);
+        if (p == null) return;
+        int rw = p.w();
+        int rh = p.h() > p.w() ? p.w() : p.h();
+        float scale = (float) size / Math.max(rw, rh);
+        int dw = Math.max(1, Math.round(rw * scale));
+        int dh = Math.max(1, Math.round(rh * scale));
+        g.blit(RenderPipelines.GUI_TEXTURED, p.id(), x + (size - dw) / 2, y + (size - dh) / 2,
+                0f, 0f, dw, dh, rw, rh, p.w(), p.h());
+    }
+
+    @Override
+    public void removed() {
+        PreviewCache.clear();
     }
 
     /**

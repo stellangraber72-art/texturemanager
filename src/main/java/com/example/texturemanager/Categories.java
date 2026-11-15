@@ -3,6 +3,7 @@ package com.example.texturemanager;
 import net.minecraft.resources.Identifier;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -156,6 +157,70 @@ public final class Categories {
 
     public static List<Category> inGroup(String group) {
         return ALL.stream().filter(c -> c.group().equals(group)).toList();
+    }
+
+    // ---------- Vorschau-Texturen (die erste Datei, die das Pack enthält, wird angezeigt) ----------
+
+    private static final Map<String, List<String>> PREVIEW = new HashMap<>();
+
+    private static void pv(String id, String... paths) { PREVIEW.put(id, List.of(paths)); }
+
+    private static String item(String n) { return "textures/item/" + n + ".png"; }
+
+    private static String block(String n) { return "textures/block/" + n + ".png"; }
+
+    static {
+        pv("sky", "textures/environment/sun.png", "textures/environment/moon_phases.png");
+        pv("particles", "textures/particle/critical_hit.png", "textures/particle/flame.png", "textures/particle/crit.png");
+        pv("hud", "textures/gui/sprites/hud/hotbar.png", "textures/gui/sprites/hud/crosshair.png");
+        pv("inventory", "textures/gui/container/inventory.png");
+        pv("glint", "textures/misc/enchanted_glint_item.png");
+        pv("fire", block("fire_0"));
+        pv("water", block("water_still"));
+        pv("lava", block("lava_still"));
+        for (String type : List.of("sword", "axe", "spear")) {
+            for (String mat : List.of("netherite", "diamond", "iron")) pv(mat + "_" + type, item(mat + "_" + type));
+            pv("other_" + type, item("stone_" + type), item("wooden_" + type), item("golden_" + type), item("copper_" + type));
+        }
+        pv("pickaxe", item("diamond_pickaxe"), item("netherite_pickaxe"), item("iron_pickaxe"));
+        pv("other_tools", item("diamond_shovel"), item("diamond_hoe"), item("iron_shovel"));
+        pv("mace", item("mace"));
+        pv("bow", item("bow"), item("bow_pulling_0"));
+        pv("crossbow", item("crossbow_standby"), item("crossbow_arrow"));
+        pv("trident", "textures/entity/trident.png", item("trident"));
+        pv("arrow", item("arrow"), item("spectral_arrow"));
+        pv("wind_charge", item("wind_charge"));
+        pv("shield", "textures/entity/shield/shield_base_nopattern.png", "textures/entity/shield_base_nopattern.png");
+        pv("fishing_rod", item("fishing_rod"));
+        pv("flint", item("flint_and_steel"));
+        pv("armor_netherite", item("netherite_chestplate"), item("netherite_helmet"));
+        pv("armor_diamond", item("diamond_chestplate"), item("diamond_helmet"));
+        pv("armor_iron", item("iron_chestplate"), item("iron_helmet"));
+        pv("armor_other", item("leather_chestplate"), item("chainmail_chestplate"), item("golden_chestplate"));
+        pv("elytra", item("elytra"));
+        pv("totem", item("totem_of_undying"));
+        pv("gapple", item("golden_apple"), item("enchanted_golden_apple"));
+        pv("pearl", item("ender_pearl"));
+        pv("potion", item("splash_potion"), item("potion"));
+        pv("xp_bottle", item("experience_bottle"));
+        pv("firework", item("firework_rocket"));
+        pv("buckets", item("water_bucket"), item("lava_bucket"), item("bucket"));
+        pv("food", item("cooked_beef"), item("golden_carrot"), item("cooked_porkchop"));
+        pv("obsidian", block("obsidian"));
+        pv("crystal", item("end_crystal"), "textures/entity/end_crystal/end_crystal.png");
+        pv("anchor", block("respawn_anchor_top"), block("respawn_anchor_side4"), block("respawn_anchor_side0"));
+        pv("glowstone", block("glowstone"));
+        pv("cobweb", block("cobweb"));
+        pv("tnt", block("tnt_side"));
+        pv("bed", item("red_bed"), item("white_bed"));
+        pv("stone", block("stone"), block("cobblestone"));
+        pv("deepslate", block("deepslate"), block("cobbled_deepslate"));
+        pv("grass", block("grass_block_side"), block("grass_block_top"));
+        pv("snow", block("snow"));
+    }
+
+    public static List<String> previewPaths(String id) {
+        return PREVIEW.getOrDefault(id, List.of());
     }
 
     // ---------- Zuordnung ----------
