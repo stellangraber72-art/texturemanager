@@ -33,7 +33,7 @@ public class TextureManagerScreen extends Screen {
 
     @Override
     protected void init() {
-        addRenderableWidget(new StringWidget(0, 6, width, 10, title, font).alignCenter());
+        addRenderableWidget(new StringWidget((width - font.width(title)) / 2, 6, font.width(title), 10, title, font));
 
         // --- Gruppen-Tabs ---
         int n = Categories.GROUPS.size();
